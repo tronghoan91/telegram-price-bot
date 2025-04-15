@@ -1,0 +1,6 @@
+python-telegram-bot==20.0b0
+Flask
+beautifulsoup4
+requests
+googlesearch-python
+gunicorn
