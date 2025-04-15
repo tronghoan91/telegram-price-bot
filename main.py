@@ -9,6 +9,7 @@ from flask import Flask, request
 import os
 import asyncio
 
+# === Config Bot ===
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN")
 app = Flask(__name__)
 
@@ -17,6 +18,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+# === Các website hỗ trợ ===
 SUPPORTED_SITES = {
     'nguyenkim': 'nguyenkim.com',
     'hc': 'hc.com.vn',
@@ -24,17 +26,15 @@ SUPPORTED_SITES = {
     'dienmaycholon': 'dienmaycholon.vn'
 }
 
+# === Hàm trích giá & khuyến mãi ===
 def extract_price_and_promo(soup, domain):
     text = soup.get_text(separator=" ", strip=True)
     price = None
     promo = None
 
+    # Ưu tiên tìm theo class cho các site chắc chắn
     if "dienmaycholon.vn" in domain:
         price_tag = soup.select_one(".price, .product-price, .box-price")
-        if price_tag:
-            price = price_tag.get_text(strip=True)
-    elif "hc.com.vn" in domain:
-        price_tag = soup.select_one(".price-final, .product-detail__price--show")
         if price_tag:
             price = price_tag.get_text(strip=True)
     elif "eco-mart.vn" in domain:
@@ -46,16 +46,18 @@ def extract_price_and_promo(soup, domain):
         if price_tag:
             price = price_tag.get_text(strip=True)
 
-    if not price:
+    # HC: dùng regex do HTML không ổn định
+    if "hc.com.vn" in domain or not price:
         match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
-        price = match[0] if match else None
+        price = match[0] if match else price
 
-    if not promo:
-        match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
-        promo = match[0] if match else None
+    # Khuyến mãi (áp dụng toàn cục)
+    match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
+    promo = match[0] if match else None
 
     return price, promo
 
+# === Tìm sản phẩm theo cú pháp nguồn:sản phẩm ===
 def get_product_info(query, source_key):
     domain = SUPPORTED_SITES.get(source_key)
     if not domain:
@@ -89,13 +91,15 @@ def get_product_info(query, source_key):
     except Exception as e:
         return f"❌ Lỗi: {e}"
 
+# === Lệnh /start ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Nhập theo cú pháp `tenweb:tên sản phẩm`, ví dụ:\n`eco:quạt điều hòa` hoặc `hc:nồi chiên`")
+    await update.message.reply_text("👋 Nhập theo cú pháp `nguon:tên sản phẩm`, ví dụ:\n`hc:tủ lạnh LG`, `eco:quạt điều hòa`, `dienmaycholon:AC-305`")
 
+# === Xử lý tin nhắn ===
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     if ':' not in text:
-        await update.message.reply_text("❗ Vui lòng nhập theo cú pháp `nguon:tên sản phẩm`, ví dụ:\n`eco:tủ lạnh`")
+        await update.message.reply_text("❗ Vui lòng nhập theo cú pháp `nguon:tên sản phẩm`")
         return
 
     source_key, query = text.split(':', 1)
@@ -106,13 +110,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = get_product_info(query, source_key)
     await update.message.reply_text(result, parse_mode="Markdown")
 
+# === Khởi tạo bot ===
 telegram_app = Application.builder().token(BOT_TOKEN).build()
 telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
+# === Flask Routes ===
 @app.route("/", methods=["GET"])
 def index():
-    return "Bot đang hoạt động!"
+    return "Bot đang chạy!"
 
 @app.route("/", methods=["POST"])
 def webhook():
@@ -126,5 +132,6 @@ def webhook():
     asyncio.run(process())
     return "OK", 200
 
+# === Chạy local ===
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
