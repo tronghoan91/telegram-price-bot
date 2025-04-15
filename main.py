@@ -9,7 +9,7 @@ from flask import Flask, request
 import os
 import asyncio
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "7062147168:AAGHaOBKLIpvEqFPJdvs7uLjr81zWzjWlIk")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN")
 app = Flask(__name__)
 
 logging.basicConfig(
@@ -17,40 +17,68 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-def get_nguyenkim_price(product_name):
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-    query = f"{product_name} site:nguyenkim.com"
-    urls = list(search(query, num_results=5))
-    product_url = next((u for u in urls if "nguyenkim.com" in u), None)
+SUPPORTED_SITES = {
+    'nguyenkim': 'nguyenkim.com',
+    'hc': 'hc.com.vn',
+    'ecomart': 'ecomart.com.vn',
+    'dienmaycholon': 'dienmaycholon.vn'
+}
 
-    if not product_url:
-        return "❌ Không tìm thấy sản phẩm trên Nguyễn Kim."
+def extract_price_and_promo(soup):
+    text = soup.get_text(separator=" ", strip=True)
+    prices = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
+    promos = re.findall(r"(tặng|giảm|quà tặng|ưu đãi|khuyến mãi)[^.:\n]{0,100}", text, flags=re.IGNORECASE)
+    return prices[0] if prices else None, promos[0] if promos else None
+
+def get_product_info(query, source_key):
+    domain = SUPPORTED_SITES.get(source_key)
+    if not domain:
+        return "❌ Không hỗ trợ nguồn này."
 
     try:
-        resp = requests.get(product_url, headers=headers, timeout=10)
+        urls = list(search(f"{query} site:{domain}", num_results=5))
+        url = next((u for u in urls if domain in u), None)
+        if not url:
+            return f"❌ Không tìm thấy sản phẩm trên {domain}"
+
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(resp.text, "html.parser")
+
         title_tag = soup.find("h1")
-        title = title_tag.text.strip() if title_tag else product_name
-        text = soup.get_text(separator=" ", strip=True)
-        matches = re.findall(r"\d[\d\.]+(?:₫|đ| VNĐ| vnđ)", text)
-        if matches:
-            price = matches[0]
-            return f"✅ {title}\n💰 Giá: {price}\n🔗 {product_url}"
+        title = title_tag.text.strip() if title_tag else query
+
+        price, promo = extract_price_and_promo(soup)
+        msg = f"✅ *{title}*"
+        if price:
+            msg += f"\n💰 Giá: {price}"
         else:
-            return f"✅ {title}\n❌ Không tìm thấy giá rõ ràng.\n🔗 {product_url}"
+            msg += "\n❌ Không tìm thấy giá rõ ràng."
+
+        if promo:
+            msg += f"\n🎁 KM: {promo}"
+        msg += f"\n🔗 {url}"
+        return msg
+
     except Exception as e:
-        return f"❌ Lỗi khi lấy dữ liệu: {e}"
+        return f"❌ Lỗi: {e}"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Gửi tên sản phẩm để mình quét giá từ Nguyễn Kim cho bạn!")
+    await update.message.reply_text("👋 Nhập theo cú pháp `tenweb:tên sản phẩm`, ví dụ:\n`dienmaycholon:AC-305`")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    product_name = update.message.text.strip()
-    await update.message.reply_text(f"🔍 Đang tìm giá cho: {product_name} ...")
-    result = get_nguyenkim_price(product_name)
-    await update.message.reply_text(result)
+    text = update.message.text.strip()
+    if ':' not in text:
+        await update.message.reply_text("❗ Vui lòng nhập theo cú pháp `nguon:tên sản phẩm`, ví dụ:\n`hc:tủ lạnh LG`")
+        return
+
+    source_key, query = text.split(':', 1)
+    source_key = source_key.strip().lower()
+    query = query.strip()
+
+    await update.message.reply_text(f"🔍 Đang tìm `{query}` trên {source_key}...")
+    result = get_product_info(query, source_key)
+    await update.message.reply_text(result, parse_mode="Markdown")
 
 telegram_app = Application.builder().token(BOT_TOKEN).build()
 telegram_app.add_handler(CommandHandler("start", start))
@@ -58,7 +86,7 @@ telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_
 
 @app.route("/", methods=["GET"])
 def index():
-    return "Bot đang hoạt động!"
+    return "Bot đang chạy!"
 
 @app.route("/", methods=["POST"])
 def webhook():
