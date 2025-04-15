@@ -76,7 +76,10 @@ def get_product_info(query, source_key):
         if price:
             msg += f"\n💰 Giá: {price}"
         else:
-            msg += "\n❌ Không tìm thấy giá rõ ràng."
+            if "hc.com.vn" in domain:
+                msg += "\n❗ Không thể trích xuất giá từ HC vì giá hiển thị bằng JavaScript. Vui lòng kiểm tra trực tiếp:"
+            else:
+                msg += "\n❌ Không tìm thấy giá rõ ràng."
 
         if promo:
             msg += f"\n🎁 KM: {promo}"
