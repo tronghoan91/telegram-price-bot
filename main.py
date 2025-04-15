@@ -20,7 +20,7 @@ logging.basicConfig(
 SUPPORTED_SITES = {
     'nguyenkim': 'nguyenkim.com',
     'hc': 'hc.com.vn',
-    'ecomart': 'ecomart.com.vn',
+    'eco': 'eco-mart.vn',
     'dienmaycholon': 'dienmaycholon.vn'
 }
 
@@ -34,19 +34,18 @@ def extract_price_and_promo(soup, domain):
         if price_tag:
             price = price_tag.get_text(strip=True)
     elif "hc.com.vn" in domain:
-        price_tag = soup.select_one(".price-old, .product-price, .main-price")
+        price_tag = soup.select_one(".price-final, .product-detail__price--show")
         if price_tag:
             price = price_tag.get_text(strip=True)
-    elif "ecomart.com.vn" in domain:
-        price_tag = soup.find("span", class_="price")
+    elif "eco-mart.vn" in domain:
+        price_tag = soup.select_one("span.price, div.price, p.price")
         if price_tag:
-            price = price_tag.text.strip()
+            price = price_tag.get_text(strip=True)
     elif "nguyenkim.com" in domain:
         price_tag = soup.find("div", class_=re.compile("price|product-price"))
         if price_tag:
             price = price_tag.get_text(strip=True)
 
-    # Fallback nếu không tìm thấy cụ thể
     if not price:
         match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
         price = match[0] if match else None
@@ -91,12 +90,12 @@ def get_product_info(query, source_key):
         return f"❌ Lỗi: {e}"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Nhập theo cú pháp `tenweb:tên sản phẩm`, ví dụ:\n`dienmaycholon:AC-305`")
+    await update.message.reply_text("👋 Nhập theo cú pháp `tenweb:tên sản phẩm`, ví dụ:\n`eco:quạt điều hòa` hoặc `hc:nồi chiên`")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     if ':' not in text:
-        await update.message.reply_text("❗ Vui lòng nhập theo cú pháp `nguon:tên sản phẩm`, ví dụ:\n`hc:tủ lạnh LG`")
+        await update.message.reply_text("❗ Vui lòng nhập theo cú pháp `nguon:tên sản phẩm`, ví dụ:\n`eco:tủ lạnh`")
         return
 
     source_key, query = text.split(':', 1)
