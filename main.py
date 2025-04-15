@@ -24,11 +24,38 @@ SUPPORTED_SITES = {
     'dienmaycholon': 'dienmaycholon.vn'
 }
 
-def extract_price_and_promo(soup):
+def extract_price_and_promo(soup, domain):
     text = soup.get_text(separator=" ", strip=True)
-    prices = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
-    promos = re.findall(r"(tặng|giảm|quà tặng|ưu đãi|khuyến mãi)[^.:\n]{0,100}", text, flags=re.IGNORECASE)
-    return prices[0] if prices else None, promos[0] if promos else None
+    price = None
+    promo = None
+
+    if "dienmaycholon.vn" in domain:
+        price_tag = soup.select_one(".price, .product-price, .box-price")
+        if price_tag:
+            price = price_tag.get_text(strip=True)
+    elif "hc.com.vn" in domain:
+        price_tag = soup.select_one(".price-old, .product-price, .main-price")
+        if price_tag:
+            price = price_tag.get_text(strip=True)
+    elif "ecomart.com.vn" in domain:
+        price_tag = soup.find("span", class_="price")
+        if price_tag:
+            price = price_tag.text.strip()
+    elif "nguyenkim.com" in domain:
+        price_tag = soup.find("div", class_=re.compile("price|product-price"))
+        if price_tag:
+            price = price_tag.get_text(strip=True)
+
+    # Fallback nếu không tìm thấy cụ thể
+    if not price:
+        match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
+        price = match[0] if match else None
+
+    if not promo:
+        match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
+        promo = match[0] if match else None
+
+    return price, promo
 
 def get_product_info(query, source_key):
     domain = SUPPORTED_SITES.get(source_key)
@@ -48,7 +75,7 @@ def get_product_info(query, source_key):
         title_tag = soup.find("h1")
         title = title_tag.text.strip() if title_tag else query
 
-        price, promo = extract_price_and_promo(soup)
+        price, promo = extract_price_and_promo(soup, domain)
         msg = f"✅ *{title}*"
         if price:
             msg += f"\n💰 Giá: {price}"
@@ -86,7 +113,7 @@ telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_
 
 @app.route("/", methods=["GET"])
 def index():
-    return "Bot đang chạy!"
+    return "Bot đang hoạt động!"
 
 @app.route("/", methods=["POST"])
 def webhook():
