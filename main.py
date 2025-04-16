@@ -1,4 +1,10 @@
 
+import re
+
+def escape_markdown(text):
+    escape_chars = r"_*[]()~`>#+-=|{}.!"
+    return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", text)
+
 import logging
 import requests
 import re
@@ -6,7 +12,6 @@ from bs4 import BeautifulSoup
 from googlesearch import search
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
-from telegram.helpers import escape_markdown
 from flask import Flask, request
 import os
 import asyncio
@@ -44,10 +49,12 @@ def extract_price_and_promo(soup, domain):
         if price_tag:
             price = price_tag.get_text(strip=True)
 
+    # HC hoặc fallback: dùng regex
     if "hc.com.vn" in domain or not price:
         match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
         price = match[0] if match else price
 
+    # Khuyến mãi
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
@@ -102,14 +109,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     source_key = source_key.strip().lower()
     query = query.strip()
 
-    await update.message.reply_text(
-        f"🔍 Đang tìm `{escape_markdown(query, version=2)}` trên {escape_markdown(source_key, version=2)}...",
-        parse_mode="MarkdownV2"
-    )
-
+    await update.message.reply_text(f"🔍 Đang tìm `{query}` trên {source_key}...")
     result = get_product_info(query, source_key)
-    safe_result = escape_markdown(result, version=2)
-    await update.message.reply_text(safe_result, parse_mode="MarkdownV2")
+    await update.message.reply_text(result, parse_mode="Markdown")
 
 telegram_app = Application.builder().token(BOT_TOKEN).build()
 telegram_app.add_handler(CommandHandler("start", start))
