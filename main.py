@@ -1,3 +1,4 @@
+
 import logging
 import requests
 import re
@@ -24,6 +25,10 @@ SUPPORTED_SITES = {
     'dienmaycholon': 'dienmaycholon.vn'
 }
 
+def escape_markdown(text):
+    escape_chars = r'\_*[]()~`>#+-=|{}.!'
+    return ''.join(['\\' + c if c in escape_chars else c for c in text])
+
 def extract_price_and_promo(soup, domain):
     text = soup.get_text(separator=" ", strip=True)
     price = None
@@ -42,12 +47,10 @@ def extract_price_and_promo(soup, domain):
         if price_tag:
             price = price_tag.get_text(strip=True)
 
-    # HC hoặc fallback: dùng regex
     if "hc.com.vn" in domain or not price:
         match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
         price = match[0] if match else price
 
-    # Khuyến mãi
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
@@ -72,22 +75,28 @@ def get_product_info(query, source_key):
         title = title_tag.text.strip() if title_tag else query
 
         price, promo = extract_price_and_promo(soup, domain)
-        msg = f"✅ *{title}*"
-        if price:
-            msg += f"\n💰 Giá: {price}"
+
+        safe_title = escape_markdown(title)
+        safe_price = escape_markdown(price) if price else None
+        safe_promo = escape_markdown(promo) if promo else None
+        safe_url = escape_markdown(url)
+
+        msg = f"✅ *{safe_title}*"
+        if safe_price:
+            msg += f"\n💰 Giá: {safe_price}"
         else:
             if "hc.com.vn" in domain:
                 msg += "\n❗ Không thể trích xuất giá từ HC vì giá hiển thị bằng JavaScript. Vui lòng kiểm tra trực tiếp:"
             else:
                 msg += "\n❌ Không tìm thấy giá rõ ràng."
 
-        if promo:
-            msg += f"\n🎁 KM: {promo}"
-        msg += f"\n🔗 {url}"
+        if safe_promo:
+            msg += f"\n🎁 KM: {safe_promo}"
+        msg += f"\n🔗 {safe_url}"
         return msg
 
     except Exception as e:
-        return f"❌ Lỗi: {e}"
+        return f"❌ Lỗi: {escape_markdown(str(e))}"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Nhập theo cú pháp `nguon:tên sản phẩm`, ví dụ:\n`hc:tủ lạnh LG`, `eco:quạt điều hòa`, `dienmaycholon:AC-305`")
@@ -102,7 +111,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     source_key = source_key.strip().lower()
     query = query.strip()
 
-    await update.message.reply_text(f"🔍 Đang tìm `{query}` trên {source_key}...")
+    await update.message.reply_text(f"🔍 Đang tìm `{escape_markdown(query)}` trên {escape_markdown(source_key)}...", parse_mode="Markdown")
     result = get_product_info(query, source_key)
     await update.message.reply_text(result, parse_mode="Markdown")
 
