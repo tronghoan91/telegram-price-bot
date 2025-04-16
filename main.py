@@ -1,52 +1,130 @@
-import os
 import logging
+import requests
+import re
+from bs4 import BeautifulSoup
+from googlesearch import search
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-from telegram.constants import ParseMode
-import openpyxl
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from flask import Flask, request
+import os
+import asyncio
 
-TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN")
+app = Flask(__name__)
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-def escape_markdown(text):
-    escape_chars = r"_*[]()~`>#+-=|{}.!"
-    return ''.join(['\\' + char if char in escape_chars else char for char in text])
+SUPPORTED_SITES = {
+    'nguyenkim': 'nguyenkim.com',
+    'hc': 'hc.com.vn',
+    'eco': 'eco-mart.vn',
+    'dienmaycholon': 'dienmaycholon.vn'
+}
+
+def extract_price_and_promo(soup, domain):
+    text = soup.get_text(separator=" ", strip=True)
+    price = None
+    promo = None
+
+    if "dienmaycholon.vn" in domain:
+        price_tag = soup.select_one(".price, .product-price, .box-price")
+        if price_tag:
+            price = price_tag.get_text(strip=True)
+    elif "eco-mart.vn" in domain:
+        price_tag = soup.select_one("span.price, div.price, p.price")
+        if price_tag:
+            price = price_tag.get_text(strip=True)
+    elif "nguyenkim.com" in domain:
+        price_tag = soup.find("div", class_=re.compile("price|product-price"))
+        if price_tag:
+            price = price_tag.get_text(strip=True)
+
+    # HC hoặc fallback: dùng regex
+    if "hc.com.vn" in domain or not price:
+        match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
+        price = match[0] if match else price
+
+    # Khuyến mãi
+    match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
+    promo = match[0] if match else None
+
+    return price, promo
+
+def get_product_info(query, source_key):
+    domain = SUPPORTED_SITES.get(source_key)
+    if not domain:
+        return "❌ Không hỗ trợ nguồn này."
+
+    try:
+        urls = list(search(f"{query} site:{domain}", num_results=5))
+        url = next((u for u in urls if domain in u), None)
+        if not url:
+            return f"❌ Không tìm thấy sản phẩm trên {domain}"
+
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        title_tag = soup.find("h1")
+        title = title_tag.text.strip() if title_tag else query
+
+        price, promo = extract_price_and_promo(soup, domain)
+        msg = f"✅ *{title}*"
+        if price:
+            msg += f"\n💰 Giá: {price}"
+        else:
+            if "hc.com.vn" in domain:
+                msg += "\n❗ Không thể trích xuất giá từ HC vì giá hiển thị bằng JavaScript. Vui lòng kiểm tra trực tiếp:"
+            else:
+                msg += "\n❌ Không tìm thấy giá rõ ràng."
+
+        if promo:
+            msg += f"\n🎁 KM: {promo}"
+        msg += f"\n🔗 {url}"
+        return msg
+
+    except Exception as e:
+        return f"❌ Lỗi: {e}"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Xin chào! Gửi file Excel chứa danh sách sản phẩm để mình quét giá nhé.")
+    await update.message.reply_text("👋 Nhập theo cú pháp `nguon:tên sản phẩm`, ví dụ:\n`hc:tủ lạnh LG`, `eco:quạt điều hòa`, `dienmaycholon:AC-305`")
 
-async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    file = update.message.document
-    if file.mime_type != 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
-        await update.message.reply_text("Vui lòng gửi file Excel định dạng .xlsx nhé.")
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    if ':' not in text:
+        await update.message.reply_text("❗ Vui lòng nhập theo cú pháp `nguon:tên sản phẩm`")
         return
 
-    file_path = await file.get_file()
-    file_name = f"/tmp/{file.file_name}"
-    await file_path.download_to_drive(file_name)
+    source_key, query = text.split(':', 1)
+    source_key = source_key.strip().lower()
+    query = query.strip()
 
-    workbook = openpyxl.load_workbook(file_name)
-    sheet = workbook.active
+    await update.message.reply_text(f"🔍 Đang tìm `{query}` trên {source_key}...")
+    result = get_product_info(query, source_key)
+    await update.message.reply_text(result, parse_mode="Markdown")
 
-    results = []
-    for row in sheet.iter_rows(min_row=2, values_only=True):
-        product_name = row[0]
-        if product_name:
-            link = f"https://www.google.com/search?q={product_name.replace(' ', '+')}+site%3Anguyenkim.com"
-            text = f"*{escape_markdown(product_name)}*\n[🔗 Mua tại Nguyễn Kim]({link})"
-            results.append(text)
+telegram_app = Application.builder().token(BOT_TOKEN).build()
+telegram_app.add_handler(CommandHandler("start", start))
+telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    for result in results:
-        await update.message.reply_text(result, parse_mode=ParseMode.MARKDOWN_V2)
+@app.route("/", methods=["GET"])
+def index():
+    return "Bot đang chạy!"
 
-if __name__ == '__main__':
-    app = ApplicationBuilder().token(TOKEN).build()
+@app.route("/", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), telegram_app.bot)
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    async def process():
+        await telegram_app.initialize()
+        await telegram_app.process_update(update)
+        await telegram_app.shutdown()
 
-    app.run_polling()
+    asyncio.run(process())
+    return "OK", 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
