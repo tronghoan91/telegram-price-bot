@@ -50,7 +50,18 @@ def extract_price_and_promo(soup, domain):
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
-    return price, promo
+    
+    if price:
+        match_price = re.match(r'(\d[\d\.]+[đ₫])\s*(.*)', price)
+        if match_price:
+            actual_price = match_price.group(1)
+            extra_info = match_price.group(2).strip()
+            if extra_info:
+                promo = (promo or "") + " " + extra_info
+            price = actual_price
+
+    return price, promo.strip() if promo else None
+
 
 def get_product_info(query, source_key):
     domain = SUPPORTED_SITES.get(source_key)
