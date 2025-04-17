@@ -25,10 +25,6 @@ SUPPORTED_SITES = {
     'dienmaycholon': 'dienmaycholon.vn'
 }
 
-def escape_markdown(text):
-    escape_chars = r'\_*[]()~`>#+-=|{}.!'
-    return ''.join(['\\' + c if c in escape_chars else c for c in text])
-
 def extract_price_and_promo(soup, domain):
     text = soup.get_text(separator=" ", strip=True)
     price = None
@@ -76,44 +72,39 @@ def get_product_info(query, source_key):
 
         price, promo = extract_price_and_promo(soup, domain)
 
-        safe_title = escape_markdown(title)
-        safe_price = escape_markdown(price) if price else None
-        safe_promo = escape_markdown(promo) if promo else None
-        safe_url = escape_markdown(url)
-
-        msg = f"✅ *{safe_title}*"
-        if safe_price:
-            msg += f"\n💰 Giá: {safe_price}"
+        msg = f"<b>✅ {title}</b>"
+        if price:
+            msg += f"<br>💰 <b>Giá:</b> {price}"
         else:
             if "hc.com.vn" in domain:
-                msg += "\n❗ Không thể trích xuất giá từ HC vì giá hiển thị bằng JavaScript. Vui lòng kiểm tra trực tiếp:"
+                msg += "<br>❗ Không thể trích xuất giá từ HC vì giá hiển thị bằng JavaScript. Vui lòng kiểm tra trực tiếp:"
             else:
-                msg += "\n❌ Không tìm thấy giá rõ ràng."
+                msg += "<br>❌ Không tìm thấy giá rõ ràng."
 
-        if safe_promo:
-            msg += f"\n🎁 KM: {safe_promo}"
-        msg += f"\n🔗 {safe_url}"
+        if promo:
+            msg += f"<br>🎁 <b>KM:</b> {promo}"
+        msg += f"<br>🔗 <a href="{url}">Xem sản phẩm</a>"
         return msg
 
     except Exception as e:
-        return f"❌ Lỗi: {escape_markdown(str(e))}"
+        return f"❌ Lỗi: {str(e)}"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Nhập theo cú pháp `nguon:tên sản phẩm`, ví dụ:\n`hc:tủ lạnh LG`, `eco:quạt điều hòa`, `dienmaycholon:AC-305`")
+    await update.message.reply_text("👋 Nhập theo cú pháp <code>nguon:tên sản phẩm</code>, ví dụ:<br><code>hc:tủ lạnh LG</code>, <code>eco:quạt điều hòa</code>, <code>dienmaycholon:AC-305</code>", parse_mode="HTML")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     if ':' not in text:
-        await update.message.reply_text("❗ Vui lòng nhập theo cú pháp `nguon:tên sản phẩm`")
+        await update.message.reply_text("❗ Vui lòng nhập theo cú pháp <code>nguon:tên sản phẩm</code>", parse_mode="HTML")
         return
 
     source_key, query = text.split(':', 1)
     source_key = source_key.strip().lower()
     query = query.strip()
 
-    await update.message.reply_text(f"🔍 Đang tìm `{escape_markdown(query)}` trên {escape_markdown(source_key)}...", parse_mode="Markdown")
+    await update.message.reply_text(f"🔍 Đang tìm <b>{query}</b> trên <b>{source_key}</b>...", parse_mode="HTML")
     result = get_product_info(query, source_key)
-    await update.message.reply_text(result, parse_mode="Markdown")
+    await update.message.reply_text(result, parse_mode="HTML")
 
 telegram_app = Application.builder().token(BOT_TOKEN).build()
 telegram_app.add_handler(CommandHandler("start", start))
