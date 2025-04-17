@@ -22,7 +22,8 @@ SUPPORTED_SITES = {
     'nguyenkim': 'nguyenkim.com',
     'hc': 'hc.com.vn',
     'eco': 'eco-mart.vn',
-    'dienmaycholon': 'dienmaycholon.vn'
+    'dienmaycholon': 'dienmaycholon.vn',
+    'pico': 'pico.vn'
 }
 
 def extract_price_and_promo(soup, domain):
@@ -42,6 +43,10 @@ def extract_price_and_promo(soup, domain):
         price_tag = soup.find("div", class_=re.compile("price|product-price"))
         if price_tag:
             price = price_tag.get_text(strip=True)
+    elif "pico.vn" in domain:
+        price_tag = soup.select_one(".product-detail__price-current, .product-price, .current-price")
+        if price_tag:
+            price = price_tag.get_text(strip=True)
 
     if "hc.com.vn" in domain or not price:
         match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
@@ -50,7 +55,6 @@ def extract_price_and_promo(soup, domain):
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
-    
     if price:
         match_price = re.match(r'(\d[\d\.]+[đ₫])\s*(.*)', price)
         if match_price:
@@ -61,7 +65,6 @@ def extract_price_and_promo(soup, domain):
             price = actual_price
 
     return price, promo.strip() if promo else None
-
 
 def get_product_info(query, source_key):
     domain = SUPPORTED_SITES.get(source_key)
@@ -103,7 +106,7 @@ def get_product_info(query, source_key):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Nhập theo cú pháp <code>nguon:tên sản phẩm</code>, ví dụ:\n"
-        "<code>hc:tủ lạnh LG</code>, <code>eco:quạt điều hòa</code>, <code>dienmaycholon:AC-305</code>",
+        "<code>hc:tủ lạnh LG</code>, <code>eco:quạt điều hòa</code>, <code>pico:AC-305</code>",
         parse_mode="HTML"
     )
 
