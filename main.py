@@ -1,4 +1,3 @@
-
 import logging
 import requests
 import re
@@ -74,35 +73,44 @@ def get_product_info(query, source_key):
 
         msg = f"<b>✅ {title}</b>"
         if price:
-            msg += f"<br>💰 <b>Giá:</b> {price}"
+            msg += f"\n💰 <b>Giá:</b> {price}"
         else:
             if "hc.com.vn" in domain:
-                msg += "<br>❗ Không thể trích xuất giá từ HC vì giá hiển thị bằng JavaScript. Vui lòng kiểm tra trực tiếp:"
+                msg += "\n❗ Không thể trích xuất giá từ HC vì giá hiển thị bằng JavaScript. Vui lòng kiểm tra trực tiếp:"
             else:
-                msg += "<br>❌ Không tìm thấy giá rõ ràng."
+                msg += "\n❌ Không tìm thấy giá rõ ràng."
 
         if promo:
-            msg += f"<br>🎁 <b>KM:</b> {promo}"
-        msg += f'<br>🔗 <a href="{url}">Xem sản phẩm</a>'
+            msg += f"\n🎁 <b>KM:</b> {promo}"
+        msg += f'\n🔗 <a href="{url}">Xem sản phẩm</a>'
         return msg
 
     except Exception as e:
         return f"❌ Lỗi: {str(e)}"
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Nhập theo cú pháp <code>nguon:tên sản phẩm</code>, ví dụ:<br><code>hc:tủ lạnh LG</code>, <code>eco:quạt điều hòa</code>, <code>dienmaycholon:AC-305</code>", parse_mode="HTML")
+    async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "👋 Nhập theo cú pháp <code>nguon:tên sản phẩm</code>, ví dụ:\n"
+        "<code>hc:tủ lạnh LG</code>, <code>eco:quạt điều hòa</code>, <code>dienmaycholon:AC-305</code>",
+        parse_mode="HTML"
+    )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     if ':' not in text:
-        await update.message.reply_text("❗ Vui lòng nhập theo cú pháp <code>nguon:tên sản phẩm</code>", parse_mode="HTML")
+        await update.message.reply_text(
+            "❗ Vui lòng nhập theo cú pháp <code>nguon:tên sản phẩm</code>",
+            parse_mode="HTML"
+        )
         return
 
     source_key, query = text.split(':', 1)
     source_key = source_key.strip().lower()
     query = query.strip()
 
-    await update.message.reply_text(f"🔍 Đang tìm <b>{query}</b> trên <b>{source_key}</b>...", parse_mode="HTML")
+    await update.message.reply_text(
+        f"🔍 Đang tìm <b>{query}</b> trên <b>{source_key}</b>...",
+        parse_mode="HTML"
+    )
     result = get_product_info(query, source_key)
     await update.message.reply_text(result, parse_mode="HTML")
 
@@ -128,3 +136,4 @@ def webhook():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
