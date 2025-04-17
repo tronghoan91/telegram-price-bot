@@ -82,7 +82,7 @@ def get_product_info(query, source_key):
                 msg += "\n❌ Không tìm thấy giá rõ ràng."
 
         if promo:
-            msg += f"\n🎁 <b>KM:</b> {promo}"
+            msg += f"\n\n🎁 <b>KM:</b> {promo}"
         msg += f'\n🔗 <a href="{url}">Xem sản phẩm</a>'
         return msg
 
