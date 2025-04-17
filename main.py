@@ -83,7 +83,7 @@ def get_product_info(query, source_key):
 
         if promo:
             msg += f"<br>🎁 <b>KM:</b> {promo}"
-        msg += f"<br>🔗 <a href="{url}">Xem sản phẩm</a>"
+        msg += f'<br>🔗 <a href="{url}">Xem sản phẩm</a>'
         return msg
 
     except Exception as e:
