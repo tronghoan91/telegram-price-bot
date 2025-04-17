@@ -1,3 +1,4 @@
+
 import logging
 import requests
 import re
@@ -87,7 +88,8 @@ def get_product_info(query, source_key):
 
     except Exception as e:
         return f"❌ Lỗi: {str(e)}"
-    async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Nhập theo cú pháp <code>nguon:tên sản phẩm</code>, ví dụ:\n"
         "<code>hc:tủ lạnh LG</code>, <code>eco:quạt điều hòa</code>, <code>dienmaycholon:AC-305</code>",
@@ -136,4 +138,3 @@ def webhook():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
