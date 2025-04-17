@@ -1,3 +1,4 @@
+
 from flask import Flask, request
 import logging
 import requests
@@ -7,7 +8,6 @@ from googlesearch import search
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import os
-import asyncio
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN")
 app = Flask(__name__)
@@ -51,7 +51,7 @@ def extract_price_and_promo(soup, domain):
         match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
         price = match[0] if match else price
 
-    match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\\n]{0,100}", text, re.IGNORECASE)
+    match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
     return price, promo
@@ -78,13 +78,17 @@ def get_product_info(query, source_key):
 
         msg = f"✅ <b>{title}</b>"
         if price:
-            msg += f"\n💰 <b>Giá:</b> {price}"
+            msg += f"
+💰 <b>Giá:</b> {price}"
         else:
-            msg += "\n❌ Không tìm thấy giá rõ ràng."
+            msg += "
+❌ Không tìm thấy giá rõ ràng."
 
         if promo:
-            msg += f"\n🎁 <b>KM:</b> {promo}"
-        msg += f'\n🔗 <a href="{url}">Xem sản phẩm</a>'
+            msg += f"
+🎁 <b>KM:</b> {promo}"
+        msg += f'
+🔗 <a href="{url}">Xem sản phẩm</a>'
         return msg
 
     except Exception as e:
@@ -92,7 +96,8 @@ def get_product_info(query, source_key):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 Nhập theo cú pháp <code>nguon:tên sản phẩm</code>, ví dụ:\n"
+        "👋 Nhập theo cú pháp <code>nguon:tên sản phẩm</code>, ví dụ:
+"
         "<code>hc:tủ lạnh LG</code>, <code>pico:quạt điều hòa</code>",
         parse_mode="HTML"
     )
@@ -111,19 +116,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = get_product_info(query, source_key)
     await update.message.reply_text(result, parse_mode="HTML")
 
-telegram_app = Application.builder().token(BOT_TOKEN).build()
+telegram_app = Application.builder().token(BOT_TOKEN).concurrent_updates(True).get_updates_http_version("1.1").build()
 telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 @app.route("/", methods=["POST"])
-def webhook():
+async def webhook():
     update = Update.de_json(request.get_json(force=True), telegram_app.bot)
-
-    async def process():
-        await telegram_app.initialize()
-        await telegram_app.process_update(update)
-
-    asyncio.run(process())
+    await telegram_app.process_update(update)
     return "OK", 200
 
 @app.route("/", methods=["GET"])
@@ -135,5 +135,5 @@ if __name__ == "__main__":
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 5000)),
         url_path=BOT_TOKEN,
-        webhook_url=f"https://https://telegram-bot-zfdp.onrender.com/{BOT_TOKEN}"  # THAY LINK NÀY
+        webhook_url=f"https://telegram-bot-zfdp.onrender.com/{BOT_TOKEN}"  # THAY LINK NÀY
     )
