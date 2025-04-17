@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 import logging
 import requests
 import re
@@ -8,7 +8,6 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import os
 import asyncio
-from threading import Thread
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN")
 app = Flask(__name__)
@@ -52,19 +51,10 @@ def extract_price_and_promo(soup, domain):
         match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
         price = match[0] if match else price
 
-    match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
+    match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
-    if price:
-        match_price = re.match(r'(\d[\d\.]+[đ₫])\s*(.*)', price)
-        if match_price:
-            actual_price = match_price.group(1)
-            extra_info = match_price.group(2).strip()
-            if extra_info:
-                promo = (promo or "") + " " + extra_info
-            price = actual_price
-
-    return price, promo.strip() if promo else None
+    return price, promo
 
 def get_product_info(query, source_key):
     domain = SUPPORTED_SITES.get(source_key)
@@ -86,17 +76,14 @@ def get_product_info(query, source_key):
 
         price, promo = extract_price_and_promo(soup, domain)
 
-        msg = f"<b>✅ {title}</b>"
+        msg = f"✅ <b>{title}</b>"
         if price:
             msg += f"\n💰 <b>Giá:</b> {price}"
         else:
-            if "hc.com.vn" in domain:
-                msg += "\n❗ Không thể trích xuất giá từ HC vì giá hiển thị bằng JavaScript. Vui lòng kiểm tra trực tiếp:"
-            else:
-                msg += "\n❌ Không tìm thấy giá rõ ràng."
+            msg += "\n❌ Không tìm thấy giá rõ ràng."
 
         if promo:
-            msg += f"\n\n🎁 <b>KM:</b> {promo}"
+            msg += f"\n🎁 <b>KM:</b> {promo}"
         msg += f'\n🔗 <a href="{url}">Xem sản phẩm</a>'
         return msg
 
@@ -106,27 +93,21 @@ def get_product_info(query, source_key):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Nhập theo cú pháp <code>nguon:tên sản phẩm</code>, ví dụ:\n"
-        "<code>hc:tủ lạnh LG</code>, <code>eco:quạt điều hòa</code>, <code>pico:AC-305</code>",
+        "<code>hc:tủ lạnh LG</code>, <code>pico:quạt điều hòa</code>",
         parse_mode="HTML"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     if ':' not in text:
-        await update.message.reply_text(
-            "❗ Vui lòng nhập theo cú pháp <code>nguon:tên sản phẩm</code>",
-            parse_mode="HTML"
-        )
+        await update.message.reply_text("❗ Vui lòng nhập theo cú pháp <code>nguon:tên sản phẩm</code>", parse_mode="HTML")
         return
 
     source_key, query = text.split(':', 1)
     source_key = source_key.strip().lower()
     query = query.strip()
 
-    await update.message.reply_text(
-        f"🔍 Đang tìm <b>{query}</b> trên <b>{source_key}</b>...",
-        parse_mode="HTML"
-    )
+    await update.message.reply_text(f"🔍 Đang tìm <b>{query}</b> trên <b>{source_key}</b>...", parse_mode="HTML")
     result = get_product_info(query, source_key)
     await update.message.reply_text(result, parse_mode="HTML")
 
@@ -134,13 +115,25 @@ telegram_app = Application.builder().token(BOT_TOKEN).build()
 telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-@app.route("/")
+@app.route("/", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), telegram_app.bot)
+
+    async def process():
+        await telegram_app.initialize()
+        await telegram_app.process_update(update)
+
+    asyncio.run(process())
+    return "OK", 200
+
+@app.route("/", methods=["GET"])
 def alive():
     return "Bot is alive!"
 
-def run_telegram_bot():
-    telegram_app.run_polling()
-
 if __name__ == "__main__":
-    Thread(target=run_telegram_bot).start()
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    telegram_app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        url_path=BOT_TOKEN,
+        webhook_url=f"https://https://telegram-bot-zfdp.onrender.com/{BOT_TOKEN}"  # THAY LINK NÀY
+    )
