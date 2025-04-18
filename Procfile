@@ -1,1 +1,1 @@
-web: gunicorn main_render_optimized_pico:app
+web: gunicorn main:app
