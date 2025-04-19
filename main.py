@@ -1,153 +1,83 @@
+import os
 import logging
 import requests
-import re
 from bs4 import BeautifulSoup
-from googlesearch import search
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
-from flask import Flask, request
-import os
-import asyncio
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN")
-app = Flask(__name__)
+TOKEN = "7062147168:AAGHaOBKLIpvEqFPJdvs7uLjr81zWzjWlIk"
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-SUPPORTED_SITES = {
-    'nguyenkim': 'nguyenkim.com',
-    'hc': 'hc.com.vn',
-    'eco': 'eco-mart.vn',
-    'dienmaycholon': 'dienmaycholon.vn',
-    'pico': 'pico.vn'
-}
-
-def extract_price_and_promo(soup, domain):
-    text = soup.get_text(separator=" ", strip=True)
-    price = None
-    promo = None
-
-    if "dienmaycholon.vn" in domain:
-        price_tag = soup.select_one(".price, .product-price, .box-price")
-        if price_tag:
-            price = price_tag.get_text(strip=True)
-    elif "eco-mart.vn" in domain:
-        price_tag = soup.select_one("span.price, div.price, p.price")
-        if price_tag:
-            price = price_tag.get_text(strip=True)
-    elif "nguyenkim.com" in domain:
-        price_tag = soup.find("div", class_=re.compile("price|product-price"))
-        if price_tag:
-            price = price_tag.get_text(strip=True)
-    elif "pico.vn" in domain:
-        price_tag = soup.select_one("span.product-detail-price, .price, .product-price")
-        if price_tag:
-            price = price_tag.get_text(strip=True)
-
-    if "hc.com.vn" in domain or not price:
-        match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
-        price = match[0] if match else price
-
-    match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
-    promo = match[0] if match else None
-
-    if price:
-        match_price = re.match(r'(\d[\d\.]+[đ₫])\s*(.*)', price)
-        if match_price:
-            actual_price = match_price.group(1)
-            extra_info = match_price.group(2).strip()
-            if extra_info:
-                promo = (promo or "") + " " + extra_info
-            price = actual_price
-
-    return price, promo.strip() if promo else None
-
-def get_product_info(query, source_key):
-    domain = SUPPORTED_SITES.get(source_key)
-    if not domain:
-        return "❌ Không hỗ trợ nguồn này."
-
-    try:
-        urls = list(search(f"{query} site:{domain}", num_results=5))
-        url = next((u for u in urls if domain in u), None)
-        if not url:
-            return f"❌ Không tìm thấy sản phẩm trên {domain}"
-
-        headers = {"User-Agent": "Mozilla/5.0"}
-        resp = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(resp.text, "html.parser")
-
-        title_tag = soup.find("h1")
-        title = title_tag.text.strip() if title_tag else query
-
-        price, promo = extract_price_and_promo(soup, domain)
-
-        msg = f"<b>✅ {title}</b>"
-        if price:
-            msg += f"\n💰 <b>Giá:</b> {price}"
-        else:
-            if "hc.com.vn" in domain:
-                msg += "\n❗ Không thể trích xuất giá từ HC vì giá hiển thị bằng JavaScript. Vui lòng kiểm tra trực tiếp:"
-            else:
-                msg += "\n❌ Không tìm thấy giá rõ ràng."
-
-        if promo:
-            msg += f"\n\n🎁 <b>KM:</b> {promo}"
-        msg += f'\n🔗 <a href="{url}">Xem sản phẩm</a>'
-        return msg
-
-    except Exception as e:
-        return f"❌ Lỗi: {str(e)}"
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 Nhập theo cú pháp <code>nguon:tên sản phẩm</code>, ví dụ:\n"
-        "<code>hc:tủ lạnh LG</code>, <code>eco:quạt điều hòa</code>, <code>dienmaycholon:AC-305</code>, <code>pico:quạt đứng</code>",
-        parse_mode="HTML"
-    )
+    await update.message.reply_text("Xin chào! Gửi tin nhắn như PICO:AC-305 để tìm giá sản phẩm nhé.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    if ':' not in text:
-        await update.message.reply_text(
-            "❗ Vui lòng nhập theo cú pháp <code>nguon:tên sản phẩm</code>",
-            parse_mode="HTML"
-        )
-        return
+    if text.upper().startswith("PICO:"):
+        query = text.split(":", 1)[1].strip()
+        await update.message.reply_text(f"🔍 Đang tìm *{query}* trên *pico.vn*...", parse_mode="Markdown")
+        result = search_pico(query)
+        if result:
+            title, price, promo, url, image = result
+            message = f"✅ *{title}*\n💰 *Giá:* {price}\n🎁 *KM:* {promo or 'Không có'}"
+            keyboard = [[InlineKeyboardButton("🔗 Xem sản phẩm", url=url)]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_photo(photo=image, caption=message, parse_mode="Markdown", reply_markup=reply_markup)
+        else:
+            await update.message.reply_text("❌ Không tìm thấy sản phẩm trên pico.vn.")
+    else:
+        await update.message.reply_text("Vui lòng gửi theo cú pháp như: `PICO:AC-305`", parse_mode="Markdown")
 
-    source_key, query = text.split(':', 1)
-    source_key = source_key.strip().lower()
-    query = query.strip()
+def search_pico(query):
+    import re
+    from urllib.parse import quote
 
-    await update.message.reply_text(
-        f"🔍 Đang tìm <b>{query}</b> trên <b>{source_key}</b>...",
-        parse_mode="HTML"
-    )
-    result = get_product_info(query, source_key)
-    await update.message.reply_text(result, parse_mode="HTML")
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
 
-telegram_app = Application.builder().token(BOT_TOKEN).build()
-telegram_app.add_handler(CommandHandler("start", start))
-telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # Tìm link sản phẩm bằng Google
+    search_url = f"https://www.google.com/search?q={quote(query)}+site%3Apico.vn"
+    res = requests.get(search_url, headers=headers)
+    soup = BeautifulSoup(res.text, "html.parser")
+    links = [a['href'] for a in soup.select('a') if '/url?q=' in a['href']]
+    product_link = None
+    for link in links:
+        url = link.split("/url?q=")[1].split("&")[0]
+        if "pico.vn" in url and "/san-pham/" in url:
+            product_link = url
+            break
+    if not product_link:
+        return None
 
-@app.route("/", methods=["GET"])
-def index():
-    return "Bot đang chạy!"
+    # Vào trang sản phẩm để lấy thông tin
+    res = requests.get(product_link, headers=headers)
+    soup = BeautifulSoup(res.text, "html.parser")
 
-@app.route("/", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), telegram_app.bot)
+    # Tên sản phẩm
+    title_tag = soup.find("h1")
+    title = title_tag.get_text(strip=True) if title_tag else query
 
-    async def process():
-        await telegram_app.initialize()
-        await telegram_app.process_update(update)
-        await telegram_app.shutdown()
+    # Giá
+    price_tag = soup.select_one(".product-price, .price")
+    price = price_tag.get_text(strip=True) if price_tag else "Không rõ"
 
-    asyncio.run(process())
-    return "OK", 200
+    # KM
+    promo_tag = soup.select_one(".product-promo, .special-price")
+    promo = promo_tag.get_text(strip=True) if promo_tag else None
+
+    # Ảnh
+    og_image = soup.find("meta", property="og:image")
+    image_url = og_image["content"] if og_image and og_image.get("content") else None
+
+    return title, price, promo, product_link, image_url
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.run_polling()
