@@ -1,5 +1,5 @@
 python-telegram-bot==20.0b0
-Flask
+Flask[async]
 beautifulsoup4
 requests
 googlesearch-python
