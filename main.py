@@ -47,29 +47,13 @@ def extract_price_and_promo(soup, domain):
             price = price_tag.get_text(strip=True)
 
     elif "pico.vn" in domain:
-    price_tag = (
-        soup.select_one("div.product-detail-price span") or
-        soup.find("span", class_="product-detail-price") or
-        soup.find("div", class_="price-final") or
-        soup.select_one(".product-price ins") or
-        soup.select_one(".product-price")
-    )
-    if price_tag:
-        price = price_tag.get_text(strip=True)
-
+        price_tag = soup.find("span", class_="product-detail-price")
+        if price_tag:
+            price = price_tag.get_text(strip=True)
 
     if "hc.com.vn" in domain or not price:
         match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
         price = match[0] if match else price
-        
-    if "pico.vn" in domain:
-    title_tag = soup.find("h1", class_="product-detail-name")
-else:
-    title_tag = soup.find("h1")
-
-title = title_tag.text.strip() if title_tag else query
-
-        
 
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
