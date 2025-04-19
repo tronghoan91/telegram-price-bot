@@ -1,3 +1,4 @@
+
 import logging
 import requests
 import re
@@ -34,16 +35,19 @@ def extract_price_and_promo(soup, domain):
         price_tag = soup.select_one(".price, .product-price, .box-price")
         if price_tag:
             price = price_tag.get_text(strip=True)
+
     elif "eco-mart.vn" in domain:
         price_tag = soup.select_one("span.price, div.price, p.price")
         if price_tag:
             price = price_tag.get_text(strip=True)
+
     elif "nguyenkim.com" in domain:
         price_tag = soup.find("div", class_=re.compile("price|product-price"))
         if price_tag:
             price = price_tag.get_text(strip=True)
+
     elif "pico.vn" in domain:
-        price_tag = soup.select_one("span.product-detail-price, .price, .product-price")
+        price_tag = soup.find("span", class_="product-detail-price")
         if price_tag:
             price = price_tag.get_text(strip=True)
 
@@ -80,7 +84,11 @@ def get_product_info(query, source_key):
         resp = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(resp.text, "html.parser")
 
-        title_tag = soup.find("h1")
+        if "pico.vn" in domain:
+            title_tag = soup.find("h1", class_="product-detail-name")
+        else:
+            title_tag = soup.find("h1")
+
         title = title_tag.text.strip() if title_tag else query
 
         price, promo = extract_price_and_promo(soup, domain)
@@ -135,7 +143,7 @@ telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_
 
 @app.route("/", methods=["GET"])
 def index():
-    return "Bot đang chạy!"
+    return "Bot is running!"
 
 @app.route("/", methods=["POST"])
 def webhook():
