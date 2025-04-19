@@ -10,7 +10,7 @@ import asyncio
 import os
 
 # ==== BOT TOKEN ====
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "7062147168:AAGHaOBKLIpvEqFPJdvs7uLjr81zWzjWlIk")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "7612591347:AAGiqfJId01VzaWeBFtEf_xUBuL8eMp5Slc")
 
 # ==== FLASK APP ====
 app = Flask(__name__)
