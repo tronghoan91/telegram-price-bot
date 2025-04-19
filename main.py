@@ -40,7 +40,6 @@ def search_pico(query):
         "User-Agent": "Mozilla/5.0"
     }
 
-    # Tìm link sản phẩm bằng Google
     search_url = f"https://www.google.com/search?q={quote(query)}+site%3Apico.vn"
     res = requests.get(search_url, headers=headers)
     soup = BeautifulSoup(res.text, "html.parser")
@@ -54,30 +53,28 @@ def search_pico(query):
     if not product_link:
         return None
 
-    # Vào trang sản phẩm để lấy thông tin
     res = requests.get(product_link, headers=headers)
     soup = BeautifulSoup(res.text, "html.parser")
 
-    # Tên sản phẩm
     title_tag = soup.find("h1")
     title = title_tag.get_text(strip=True) if title_tag else query
 
-    # Giá
     price_tag = soup.select_one(".product-price, .price")
     price = price_tag.get_text(strip=True) if price_tag else "Không rõ"
 
-    # KM
     promo_tag = soup.select_one(".product-promo, .special-price")
     promo = promo_tag.get_text(strip=True) if promo_tag else None
 
-    # Ảnh
     og_image = soup.find("meta", property="og:image")
     image_url = og_image["content"] if og_image and og_image.get("content") else None
 
     return title, price, promo, product_link, image_url
 
+# Đây là app để Gunicorn/Render có thể gọi
+app = ApplicationBuilder().token(TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+# Chỉ chạy polling nếu chạy local
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling()
