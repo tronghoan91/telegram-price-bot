@@ -47,7 +47,13 @@ def extract_price_and_promo(soup, domain):
             price = price_tag.get_text(strip=True)
 
     elif "pico.vn" in domain:
-        price_tag = soup.find("span", class_="product-detail-price")
+        price_tag = (
+            soup.select_one("div.product-detail-price span") or
+            soup.find("span", class_="product-detail-price") or
+            soup.find("div", class_="price-final") or
+            soup.select_one(".product-price ins") or
+            soup.select_one(".product-price")
+        )
         if price_tag:
             price = price_tag.get_text(strip=True)
 
@@ -55,7 +61,8 @@ def extract_price_and_promo(soup, domain):
         match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
         price = match[0] if match else price
 
-    match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\n]{0,100}", text, re.IGNORECASE)
+    match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:
+]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
     if price:
@@ -95,16 +102,22 @@ def get_product_info(query, source_key):
 
         msg = f"<b>✅ {title}</b>"
         if price:
-            msg += f"\n💰 <b>Giá:</b> {price}"
+            msg += f"
+💰 <b>Giá:</b> {price}"
         else:
             if "hc.com.vn" in domain:
-                msg += "\n❗ Không thể trích xuất giá từ HC vì giá hiển thị bằng JavaScript. Vui lòng kiểm tra trực tiếp:"
+                msg += "
+❗ Không thể trích xuất giá từ HC vì giá hiển thị bằng JavaScript. Vui lòng kiểm tra trực tiếp:"
             else:
-                msg += "\n❌ Không tìm thấy giá rõ ràng."
+                msg += "
+❌ Không tìm thấy giá rõ ràng."
 
         if promo:
-            msg += f"\n\n🎁 <b>KM:</b> {promo}"
-        msg += f'\n🔗 <a href="{url}">Xem sản phẩm</a>'
+            msg += f"
+
+🎁 <b>KM:</b> {promo}"
+        msg += f'
+🔗 <a href="{url}">Xem sản phẩm</a>'
         return msg
 
     except Exception as e:
@@ -112,30 +125,33 @@ def get_product_info(query, source_key):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 Nhập theo cú pháp <code>nguon:tên sản phẩm</code>, ví dụ:\n"
-        "<code>hc:tủ lạnh LG</code>, <code>eco:quạt điều hòa</code>, <code>dienmaycholon:AC-305</code>, <code>pico:quạt đứng</code>",
+        "👋 Gửi tên sản phẩm hoặc nhập theo cú pháp <code>nguon:tên sản phẩm</code>
+"
+        "Ví dụ: <code>hc:tủ lạnh LG</code> hoặc <b>Magic A-030</b> để tìm tất cả các sàn.",
         parse_mode="HTML"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    if ':' not in text:
-        await update.message.reply_text(
-            "❗ Vui lòng nhập theo cú pháp <code>nguon:tên sản phẩm</code>",
-            parse_mode="HTML"
-        )
-        return
 
-    source_key, query = text.split(':', 1)
-    source_key = source_key.strip().lower()
-    query = query.strip()
-
-    await update.message.reply_text(
-        f"🔍 Đang tìm <b>{query}</b> trên <b>{source_key}</b>...",
-        parse_mode="HTML"
-    )
-    result = get_product_info(query, source_key)
-    await update.message.reply_text(result, parse_mode="HTML")
+    if ':' in text:
+        source_key, query = text.split(':', 1)
+        source_key = source_key.strip().lower()
+        query = query.strip()
+        await update.message.reply_text(f"🔍 Đang tìm <b>{query}</b> trên <b>{source_key}</b>...", parse_mode="HTML")
+        result = get_product_info(query, source_key)
+        await update.message.reply_text(result, parse_mode="HTML")
+    else:
+        query = text
+        await update.message.reply_text(f"🔍 Đang tìm <b>{query}</b> trên tất cả các sàn...", parse_mode="HTML")
+        for source_key in SUPPORTED_SITES:
+            try:
+                result = get_product_info(query, source_key)
+                await update.message.reply_text(f"<b>🛍️ {source_key.upper()}</b>
+{result}", parse_mode="HTML")
+            except Exception as e:
+                await update.message.reply_text(f"❌ {source_key.upper()}: Lỗi khi tìm sản phẩm
+{str(e)}", parse_mode="HTML")
 
 telegram_app = Application.builder().token(BOT_TOKEN).build()
 telegram_app.add_handler(CommandHandler("start", start))
