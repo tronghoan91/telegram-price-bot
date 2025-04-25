@@ -30,7 +30,22 @@ def extract_price_and_promo(soup, domain):
     price = None
     promo = None
 
-    if "dienmaycholon.vn" in domain:
+    if "pico.vn" in domain:
+        price_tag = (
+            soup.select_one(".product-detail-price ins") or
+            soup.select_one(".price-final") or
+            soup.select_one("div.price span") or
+            soup.find("span", class_="product-detail-price")
+        )
+        if price_tag:
+            price = price_tag.get_text(strip=True)
+
+    elif "hc.com.vn" in domain:
+        # Giá render bằng JavaScript nên dùng regex trên toàn bộ text
+        match = re.findall(r"\d{1,3}(?:[.,]\d{3})+(?:₫|đ| VNĐ| vnđ)?", text)
+        price = match[0] if match else None
+
+    elif "dienmaycholon.vn" in domain:
         price_tag = soup.select_one(".price, .product-price, .box-price")
         if price_tag:
             price = price_tag.get_text(strip=True)
@@ -45,32 +60,15 @@ def extract_price_and_promo(soup, domain):
         if price_tag:
             price = price_tag.get_text(strip=True)
 
-    elif "pico.vn" in domain:
-        price_tag = (
-            soup.select_one("div.product-detail-price span") or
-            soup.find("span", class_="product-detail-price") or
-            soup.find("div", class_="price-final") or
-            soup.select_one(".product-price ins") or
-            soup.select_one(".product-price")
-        )
-        if price_tag:
-            price = price_tag.get_text(strip=True)
-
-    if "hc.com.vn" in domain or not price:
-        match = re.findall(r"\d[\d\.]{3,}(?:₫|đ| VNĐ| vnđ|)", text)
-        price = match[0] if match else price
-
+    # Tìm khuyến mãi
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
+    # Làm sạch định dạng giá
     if price:
-        match_price = re.match(r'(\d[\d\.]+[đ₫])\s*(.*)', price)
-        if match_price:
-            actual_price = match_price.group(1)
-            extra_info = match_price.group(2).strip()
-            if extra_info:
-                promo = (promo or "") + " " + extra_info
-            price = actual_price
+        price = re.sub(r"[^\d]", "", price)
+        if price:
+            price = f"{int(price):,}đ".replace(",", ".")
 
     return price, promo.strip() if promo else None
 
@@ -91,6 +89,8 @@ def get_product_info(query, source_key):
 
         if "pico.vn" in domain:
             title_tag = soup.find("h1", class_="product-detail-name")
+        elif "hc.com.vn" in domain:
+            title_tag = soup.find("h1", class_="product-title")
         else:
             title_tag = soup.find("h1")
 
