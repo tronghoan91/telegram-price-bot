@@ -26,26 +26,24 @@ SUPPORTED_SITES = {
 }
 
 def extract_price_and_promo(soup, domain):
-    text = soup.get_text(separator=" ", strip=True)
     price = None
     promo = None
+    text = soup.get_text(separator=" ", strip=True)
 
     if "pico.vn" in domain:
-        price_tag = soup.select_one("div.product-price ins")
-        if not price_tag:
-            price_tag = soup.select_one("div.product-price")
+        price_tag = soup.select_one("div.product-price ins") or soup.select_one("div.product-price")
         if price_tag:
             price = price_tag.get_text(strip=True)
 
     elif "nguyenkim.com" in domain:
-        price_block = soup.find("div", class_=re.compile("product-price"))
-        if price_block:
-            all_prices = re.findall(r"\d{1,3}(?:[.,]\d{3})+(?:₫|đ|)", price_block.get_text())
-            if all_prices:
-                price = all_prices[0]
+        price_tag = soup.find("div", class_="product-price")
+        if price_tag:
+            match = re.search(r"\d[\d\.\,]+₫", price_tag.get_text())
+            if match:
+                price = match.group()
 
     elif "hc.com.vn" in domain:
-        match = re.findall(r"\d{1,3}(?:[.,]\d{3})+(?:₫|đ|)", text)
+        match = re.findall(r"\d[\d\.\,]+(?:₫|đ| VNĐ| vnđ)?", text)
         price = match[0] if match else None
 
     elif "dienmaycholon.vn" in domain:
@@ -58,6 +56,7 @@ def extract_price_and_promo(soup, domain):
         if price_tag:
             price = price_tag.get_text(strip=True)
 
+    # Khuyến mãi
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
