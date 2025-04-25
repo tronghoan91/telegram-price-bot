@@ -34,14 +34,17 @@ def extract_price_and_promo(soup, domain):
         price_tag = (
             soup.select_one(".product-detail-price ins") or
             soup.select_one(".price-final") or
-            soup.select_one("div.price span") or
-            soup.find("span", class_="product-detail-price")
+            soup.select_one(".price span") or
+            soup.select_one(".product-price ins") or
+            soup.select_one(".product-price")
         )
         if price_tag:
-            price = price_tag.get_text(strip=True)
+            raw_price = price_tag.get_text(strip=True)
+            price_match = re.search(r"\d[\d\.\,]{4,}", raw_price)
+            if price_match:
+                price = price_match.group()
 
     elif "hc.com.vn" in domain:
-        # Giá render bằng JavaScript nên dùng regex trên toàn bộ text
         match = re.findall(r"\d{1,3}(?:[.,]\d{3})+(?:₫|đ| VNĐ| vnđ)?", text)
         price = match[0] if match else None
 
@@ -58,7 +61,10 @@ def extract_price_and_promo(soup, domain):
     elif "nguyenkim.com" in domain:
         price_tag = soup.find("div", class_=re.compile("price|product-price"))
         if price_tag:
-            price = price_tag.get_text(strip=True)
+            raw_price = price_tag.get_text(strip=True)
+            price_match = re.search(r"\d[\d\.\,]{4,}", raw_price)
+            if price_match:
+                price = price_match.group()
 
     # Tìm khuyến mãi
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\\n]{0,100}", text, re.IGNORECASE)
