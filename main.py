@@ -31,12 +31,10 @@ def extract_price_and_promo(soup, domain):
     promo = None
 
     if "pico.vn" in domain:
+        # Trích xuất giá từ <div class="product-price"><ins>4.499.000₫</ins></div>
         price_tag = soup.select_one("div.product-price ins")
-        if not price_tag:
-            price_tag = soup.select_one("div.product-price")
         if price_tag:
-            raw_price = price_tag.get_text(strip=True)
-            price = raw_price
+            price = price_tag.get_text(strip=True)
 
     elif "hc.com.vn" in domain:
         match = re.findall(r"\d{1,3}(?:[.,]\d{3})+(?:₫|đ| VNĐ| vnđ)?", text)
@@ -57,13 +55,15 @@ def extract_price_and_promo(soup, domain):
         if price_tag:
             price = price_tag.get_text(strip=True)
 
+    # KM nếu có
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
+    # Làm sạch giá
     if price:
-        price_digits = re.sub(r"[^\d]", "", price)
-        if price_digits:
-            price = f"{int(price_digits):,}đ".replace(",", ".")
+        digits = re.sub(r"[^\d]", "", price)
+        if digits:
+            price = f"{int(digits):,}đ".replace(",", ".")
 
     return price, promo.strip() if promo else None
 
