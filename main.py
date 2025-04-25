@@ -31,15 +31,12 @@ def extract_price_and_promo(soup, domain):
     promo = None
 
     if "pico.vn" in domain:
-        price_tag = (
-            soup.select_one("div.product-price ins") or
-            soup.select_one("div.product-price")
-        )
+        price_tag = soup.select_one("div.product-price ins")
+        if not price_tag:
+            price_tag = soup.select_one("div.product-price")
         if price_tag:
             raw_price = price_tag.get_text(strip=True)
-            price_match = re.search(r"\d[\d\.\,]{4,}", raw_price)
-            if price_match:
-                price = price_match.group()
+            price = raw_price
 
     elif "hc.com.vn" in domain:
         match = re.findall(r"\d{1,3}(?:[.,]\d{3})+(?:₫|đ| VNĐ| vnđ)?", text)
@@ -58,18 +55,15 @@ def extract_price_and_promo(soup, domain):
     elif "nguyenkim.com" in domain:
         price_tag = soup.find("div", class_=re.compile("price|product-price"))
         if price_tag:
-            raw_price = price_tag.get_text(strip=True)
-            price_match = re.search(r"\d[\d\.\,]{4,}", raw_price)
-            if price_match:
-                price = price_match.group()
+            price = price_tag.get_text(strip=True)
 
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
     if price:
-        price = re.sub(r"[^\d]", "", price)
-        if price:
-            price = f"{int(price):,}đ".replace(",", ".")
+        price_digits = re.sub(r"[^\d]", "", price)
+        if price_digits:
+            price = f"{int(price_digits):,}đ".replace(",", ".")
 
     return price, promo.strip() if promo else None
 
