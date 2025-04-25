@@ -26,24 +26,18 @@ SUPPORTED_SITES = {
 }
 
 def extract_price_and_promo(soup, domain):
+    text = soup.get_text(separator=" ", strip=True)
     price = None
     promo = None
-    text = soup.get_text(separator=" ", strip=True)
 
     if "pico.vn" in domain:
-        price_tag = soup.select_one("div.product-price ins") or soup.select_one("div.product-price")
+        # Trích xuất giá từ <div class="product-price"><ins>4.499.000₫</ins></div>
+        price_tag = soup.select_one("div.product-price ins")
         if price_tag:
             price = price_tag.get_text(strip=True)
 
-    elif "nguyenkim.com" in domain:
-        price_tag = soup.find("div", class_="product-price")
-        if price_tag:
-            match = re.search(r"\d[\d\.\,]+₫", price_tag.get_text())
-            if match:
-                price = match.group()
-
     elif "hc.com.vn" in domain:
-        match = re.findall(r"\d[\d\.\,]+(?:₫|đ| VNĐ| vnđ)?", text)
+        match = re.findall(r"\d{1,3}(?:[.,]\d{3})+(?:₫|đ| VNĐ| vnđ)?", text)
         price = match[0] if match else None
 
     elif "dienmaycholon.vn" in domain:
@@ -56,10 +50,16 @@ def extract_price_and_promo(soup, domain):
         if price_tag:
             price = price_tag.get_text(strip=True)
 
-    # Khuyến mãi
+    elif "nguyenkim.com" in domain:
+        price_tag = soup.find("div", class_=re.compile("price|product-price"))
+        if price_tag:
+            price = price_tag.get_text(strip=True)
+
+    # KM nếu có
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
+    # Làm sạch giá
     if price:
         digits = re.sub(r"[^\d]", "", price)
         if digits:
@@ -86,8 +86,6 @@ def get_product_info(query, source_key):
             title_tag = soup.find("h1", class_="product-title")
         elif "hc.com.vn" in domain:
             title_tag = soup.find("h1", class_="product-title")
-        elif "nguyenkim.com" in domain:
-            title_tag = soup.find("h1", class_=re.compile("product-name|product-title"))
         else:
             title_tag = soup.find("h1")
 
