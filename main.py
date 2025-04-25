@@ -32,11 +32,20 @@ def extract_price_and_promo(soup, domain):
 
     if "pico.vn" in domain:
         price_tag = soup.select_one("div.product-price ins")
+        if not price_tag:
+            price_tag = soup.select_one("div.product-price")
         if price_tag:
             price = price_tag.get_text(strip=True)
 
+    elif "nguyenkim.com" in domain:
+        price_block = soup.find("div", class_=re.compile("product-price"))
+        if price_block:
+            all_prices = re.findall(r"\d{1,3}(?:[.,]\d{3})+(?:₫|đ|)", price_block.get_text())
+            if all_prices:
+                price = all_prices[0]
+
     elif "hc.com.vn" in domain:
-        match = re.findall(r"\d{1,3}(?:[.,]\d{3})+(?:₫|đ| VNĐ| vnđ)?", text)
+        match = re.findall(r"\d{1,3}(?:[.,]\d{3})+(?:₫|đ|)", text)
         price = match[0] if match else None
 
     elif "dienmaycholon.vn" in domain:
@@ -46,11 +55,6 @@ def extract_price_and_promo(soup, domain):
 
     elif "eco-mart.vn" in domain:
         price_tag = soup.select_one("span.price, div.price, p.price")
-        if price_tag:
-            price = price_tag.get_text(strip=True)
-
-    elif "nguyenkim.com" in domain:
-        price_tag = soup.find("div", class_=re.compile("price|product-price"))
         if price_tag:
             price = price_tag.get_text(strip=True)
 
@@ -70,14 +74,10 @@ def get_product_info(query, source_key):
         return "❌ Không hỗ trợ nguồn này."
 
     try:
-        # Ép link nếu là PICO + AC-306
-        if domain == "pico.vn" and "ac-306" in query.lower().replace(" ", ""):
-            url = "https://pico.vn/quat-khong-canh-ket-hop-loc-khong-khi-magic-ac-306-AC306"
-        else:
-            urls = list(search(f"{query} site:{domain}", num_results=5))
-            url = next((u for u in urls if domain in u), None)
-            if not url:
-                return f"❌ Không tìm thấy sản phẩm trên {domain}"
+        urls = list(search(f"{query} site:{domain}", num_results=5))
+        url = next((u for u in urls if domain in u), None)
+        if not url:
+            return f"❌ Không tìm thấy sản phẩm trên {domain}"
 
         headers = {"User-Agent": "Mozilla/5.0"}
         resp = requests.get(url, headers=headers, timeout=10)
@@ -87,15 +87,13 @@ def get_product_info(query, source_key):
             title_tag = soup.find("h1", class_="product-title")
         elif "hc.com.vn" in domain:
             title_tag = soup.find("h1", class_="product-title")
+        elif "nguyenkim.com" in domain:
+            title_tag = soup.find("h1", class_=re.compile("product-name|product-title"))
         else:
             title_tag = soup.find("h1")
 
         title = title_tag.text.strip() if title_tag else query
         price, promo = extract_price_and_promo(soup, domain)
-
-        # Gán giá thủ công nếu không trích được từ Pico
-        if "pico.vn" in domain and not price and "ac-306" in query.lower().replace(" ", ""):
-            price = "4.499.000đ"
 
         msg = f"<b>✅ {title}</b>"
         if price:
