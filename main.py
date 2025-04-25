@@ -32,11 +32,8 @@ def extract_price_and_promo(soup, domain):
 
     if "pico.vn" in domain:
         price_tag = (
-            soup.select_one(".product-detail-price ins") or
-            soup.select_one(".price-final") or
-            soup.select_one(".price span") or
-            soup.select_one(".product-price ins") or
-            soup.select_one(".product-price")
+            soup.select_one("div.product-price ins") or
+            soup.select_one("div.product-price")
         )
         if price_tag:
             raw_price = price_tag.get_text(strip=True)
@@ -66,11 +63,9 @@ def extract_price_and_promo(soup, domain):
             if price_match:
                 price = price_match.group()
 
-    # Tìm khuyến mãi
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
-    # Làm sạch định dạng giá
     if price:
         price = re.sub(r"[^\d]", "", price)
         if price:
@@ -94,7 +89,7 @@ def get_product_info(query, source_key):
         soup = BeautifulSoup(resp.text, "html.parser")
 
         if "pico.vn" in domain:
-            title_tag = soup.find("h1", class_="product-detail-name")
+            title_tag = soup.find("h1", class_="product-title")
         elif "hc.com.vn" in domain:
             title_tag = soup.find("h1", class_="product-title")
         else:
