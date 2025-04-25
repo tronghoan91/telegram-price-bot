@@ -31,10 +31,18 @@ def extract_price_and_promo(soup, domain):
     promo = None
 
     if "pico.vn" in domain:
-        # Trích xuất giá từ <div class="product-price"><ins>4.499.000₫</ins></div>
-        price_tag = soup.select_one("div.product-price ins")
+        price_tag = (
+            soup.select_one(".product-detail-price ins") or
+            soup.select_one(".price-final") or
+            soup.select_one(".price span") or
+            soup.select_one(".product-price ins") or
+            soup.select_one(".product-price")
+        )
         if price_tag:
-            price = price_tag.get_text(strip=True)
+            raw_price = price_tag.get_text(strip=True)
+            price_match = re.search(r"\d[\d\.\,]{4,}", raw_price)
+            if price_match:
+                price = price_match.group()
 
     elif "hc.com.vn" in domain:
         match = re.findall(r"\d{1,3}(?:[.,]\d{3})+(?:₫|đ| VNĐ| vnđ)?", text)
@@ -53,17 +61,20 @@ def extract_price_and_promo(soup, domain):
     elif "nguyenkim.com" in domain:
         price_tag = soup.find("div", class_=re.compile("price|product-price"))
         if price_tag:
-            price = price_tag.get_text(strip=True)
+            raw_price = price_tag.get_text(strip=True)
+            price_match = re.search(r"\d[\d\.\,]{4,}", raw_price)
+            if price_match:
+                price = price_match.group()
 
-    # KM nếu có
+    # Tìm khuyến mãi
     match = re.findall(r"(tặng|giảm|ưu đãi|quà tặng)[^.:\\n]{0,100}", text, re.IGNORECASE)
     promo = match[0] if match else None
 
-    # Làm sạch giá
+    # Làm sạch định dạng giá
     if price:
-        digits = re.sub(r"[^\d]", "", price)
-        if digits:
-            price = f"{int(digits):,}đ".replace(",", ".")
+        price = re.sub(r"[^\d]", "", price)
+        if price:
+            price = f"{int(price):,}đ".replace(",", ".")
 
     return price, promo.strip() if promo else None
 
@@ -83,7 +94,7 @@ def get_product_info(query, source_key):
         soup = BeautifulSoup(resp.text, "html.parser")
 
         if "pico.vn" in domain:
-            title_tag = soup.find("h1", class_="product-title")
+            title_tag = soup.find("h1", class_="product-detail-name")
         elif "hc.com.vn" in domain:
             title_tag = soup.find("h1", class_="product-title")
         else:
